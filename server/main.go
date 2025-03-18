@@ -4,10 +4,11 @@ import (
     "context"
     "fmt"
     "log"
+    "github.com/Bisruxa/graphql_practice/schema"
 )
 
 func main() {
-   books,err := FetchBooks(context.Background())
+   books,err := schma.FetchBooks(context.Background())
    if err!= nil{
     log.Fatal(err)
    }

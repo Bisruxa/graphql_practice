@@ -1,4 +1,4 @@
-package main
+package schma
 
 import (
 	"context"
