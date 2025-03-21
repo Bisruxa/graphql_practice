@@ -2,97 +2,28 @@ package schema
 
 import (
 	"context"
-	"fmt"
 	"github.com/machinebox/graphql"
+	"fmt"
 )
 
-// Define Author struct
-type Author struct {
-	Uuid string `json:"uuid"`
-	Name string `json:"name"`
-	Age  int    `json:"age"`
-}
-
-// Define Book struct
+// Book struct represents a book object
 type Book struct {
-	Uuid   string `json:"uuid"`
-	Title  string `json:"title"`
-	Genre  string `json:"genre"`
-	Author Author `json:"author"`
+	Uuid  string `json:"uuid"`
+	Title string `json:"title"`
+	Genre string `json:"genre"`
 }
 
 const hasuraEndpoint = "http://localhost:8080/v1/graphql"
 const hasuraAdminSecret = "mysecret"
 
-// Create GraphQL client
+// createGraphQLClient initializes the GraphQL client with proper headers.
 func createGraphQLClient() *graphql.Client {
 	client := graphql.NewClient(hasuraEndpoint)
-	client.Log = func(s string) { println(s) }
+	client.Log = func(s string) { println(s) } // Log for debugging
 	return client
 }
 
-// Insert an author into Hasura
-func InsertAuthor(ctx context.Context, author Author) error {
-	client := createGraphQLClient()
-
-	mutation := `
-		mutation insertAuthor($uuid: uuid!, $name: String!, $age: Int!) {
-			insert_Author_one(object: {uuid: $uuid, name: $name, age: $age}) {
-				uuid
-			}
-		}
-	`
-
-	req := graphql.NewRequest(mutation)
-	req.Var("uuid", author.Uuid)
-	req.Var("name", author.Name)
-	req.Var("age", author.Age)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-hasura-admin-secret", hasuraAdminSecret)
-
-	if err := client.Run(ctx, req, nil); err != nil {
-		return fmt.Errorf("error inserting author: %v", err)
-	}
-
-	fmt.Println("Author inserted successfully:", author.Uuid)
-	return nil
-}
-
-// Insert a book and associate it with an existing author
-func InsertBook(ctx context.Context, book Book, authorUUID string) error {
-	client := createGraphQLClient()
-
-	mutation := `
-		mutation insertBook($uuid: uuid!, $title: String!, $genre: String!, $author_uuid: uuid!) {
-			insert_Books_one(object: {
-				uuid: $uuid,
-				title: $title,
-				genre: $genre,
-				author_id: $author_uuid 
-			}) {
-				uuid
-			}
-		}
-	`
-
-	req := graphql.NewRequest(mutation)
-	req.Var("uuid", book.Uuid)
-	req.Var("title", book.Title)
-	req.Var("genre", book.Genre)
-	req.Var("author_uuid", authorUUID) // Use the correct variable for author UUID
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-hasura-admin-secret", hasuraAdminSecret)
-
-	if err := client.Run(ctx, req, nil); err != nil {
-		return fmt.Errorf("error inserting book: %v", err)
-	}
-
-	fmt.Println("Book inserted successfully:", book.Uuid)
-	return nil
-}
-
-// Fetch all books with their respective authors
+// FetchBooks retrieves all books from Hasura using a GraphQL query.
 func FetchBooks(ctx context.Context) ([]Book, error) {
 	client := createGraphQLClient()
 
@@ -102,21 +33,16 @@ func FetchBooks(ctx context.Context) ([]Book, error) {
 				uuid
 				title
 				genre
-				author_uuid {
-					uuid
-					name
-					age
-				}
 			}
 		}
 	`
 
 	req := graphql.NewRequest(query)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-hasura-admin-secret", hasuraAdminSecret)
+	req.Header.Set("x-hasura-admin-secret", hasuraAdminSecret) // Add admin secret
 
 	var responseData struct {
-		Books []Book `json:"Books"`
+		Books []Book `json:"books"`
 	}
 
 	if err := client.Run(ctx, req, &responseData); err != nil {
@@ -124,4 +50,78 @@ func FetchBooks(ctx context.Context) ([]Book, error) {
 	}
 
 	return responseData.Books, nil
+}
+
+// FetchBookByID retrieves a single book by its UUID from Hasura.
+func FetchBookByID(ctx context.Context, bookID string) (*Book, error) {
+	client := createGraphQLClient()
+
+	query := `
+		query getBook($uuid: uuid!) {
+			Books(where: {uuid: {_eq: $uuid}}) {
+				uuid
+				title
+				genre
+			}
+		}		
+	`
+
+	req := graphql.NewRequest(query)
+	req.Var("uuid", bookID) // Adjusted to pass UUID
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-hasura-admin-secret", hasuraAdminSecret) // Add admin secret
+
+	var responseData struct {
+		Books []Book `json:"books"`
+	}
+
+	if err := client.Run(ctx, req, &responseData); err != nil {
+		return nil, err
+	}
+
+	if len(responseData.Books) == 0 {
+		return nil, nil // Return nil if no book found
+	}
+
+	return &responseData.Books[0], nil
+}
+
+// InsertBook inserts a new book into the database using a GraphQL mutation.
+func InsertBook(ctx context.Context, book Book) error {
+	client := createGraphQLClient()
+
+	mutation := `
+		mutation insertBook($uuid: uuid!, $title: String!, $genre: String!) {
+			insert_Books(objects: {uuid: $uuid, title: $title, genre: $genre}) {
+				returning {
+					uuid
+					title
+					genre
+				}
+			}
+		}
+	`
+
+	req := graphql.NewRequest(mutation)
+	req.Var("uuid", book.Uuid)
+	req.Var("title", book.Title)
+	req.Var("genre", book.Genre)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-hasura-admin-secret", hasuraAdminSecret) // Add admin secret
+
+	var responseData struct {
+		InsertBooks struct {
+			Returning []Book `json:"returning"`
+		} `json:"insert_Books"`
+	}
+
+	if err := client.Run(ctx, req, &responseData); err != nil {
+		return err
+	}
+
+	if len(responseData.InsertBooks.Returning) == 0 {
+		return fmt.Errorf("failed to insert book")
+	}
+
+	return nil
 }

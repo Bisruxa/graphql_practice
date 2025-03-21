@@ -4,58 +4,66 @@ import (
 	"context"
 	"fmt"
 	"log"
-
 	"github.com/Bisruxa/graphql_practice/schema"
 	"github.com/google/uuid"
 )
 
 func main() {
-	ctx := context.Background()
+	// Insert some dummy books with unique UUIDs
+	dummyBooks := []schema.Book{
+		{
+			Uuid:  uuid.New().String(), // Generate a unique UUID
+			Title: "The Hobbit",
+			Genre: "Fantasy",
+		},
+		{
+			Uuid:  uuid.New().String(), // Generate a unique UUID
+			Title: "1984",
+			Genre: "Dystopian",
+		},
+		{
+			Uuid:  uuid.New().String(), // Generate a unique UUID
+			Title: "To Kill a Mockingbird",
+			Genre: "Classic",
+		},
+		{
+			Uuid:  uuid.New().String(), // Generate a unique UUID
+			Title: "Harry Potter",
+			Genre: "Fantasy",
+		},
+	}
 
-	// Fetch and display existing books
-	books, err := schema.FetchBooks(ctx)
+	for _, book := range dummyBooks {
+		// Insert each book into the database
+		err := schema.InsertBook(context.Background(), book)
+		if err != nil {
+			log.Fatalf("Error inserting book: %v", err)
+		}
+		fmt.Printf("Inserted book: %s UUID: %s\n", book.Title, book.Uuid)
+	}
+
+	// Fetch all books
+	books, err := schema.FetchBooks(context.Background())
 	if err != nil {
-		log.Fatal("Error fetching books:", err)
+		log.Fatal(err)
 	}
 
-	fmt.Println("Existing Books:")
+	// Print all books
+	fmt.Println("Books:")
 	for _, book := range books {
-		fmt.Printf("ID: %s, Title: %s, Genre: %s, Author: %s\n",
-			book.Uuid, book.Title, book.Genre, book.Author.Name)
+		fmt.Printf("UUID: %s, Title: %s, Genre: %s\n", book.Uuid, book.Title, book.Genre)
 	}
 
-	// Create dummy authors and books
-	dummyAuthors := []struct {
-		Name string
-		Age  int
-		Book schema.Book
-	}{
-		{Name: "J.K. Rowling", Age: 57, Book: schema.Book{Uuid: uuid.New().String(), Title: "Harry Potter", Genre: "Fantasy"}},
-		{Name: "George Orwell", Age: 46, Book: schema.Book{Uuid: uuid.New().String(), Title: "1984", Genre: "Dystopian"}},
-		{Name: "Harper Lee", Age: 89, Book: schema.Book{Uuid: uuid.New().String(), Title: "To Kill a Mockingbird", Genre: "Classic"}},
+	// Fetch a book by UUID (example UUID)
+	bookID := dummyBooks[0].Uuid // Use the UUID of the first inserted book
+	book, err := schema.FetchBookByID(context.Background(), bookID)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	// Insert authors and books
-	for _, data := range dummyAuthors {
-		// Insert Author
-		authorUUID := uuid.New().String()
-		author := schema.Author{
-			Uuid: authorUUID,
-			Name: data.Name,
-			Age:  data.Age,
-		}
-
-		if err := schema.InsertAuthor(ctx, author); err != nil {
-			fmt.Println("Error inserting author:", err)
-			continue
-		}
-		fmt.Println("Inserted author:", author.Name, "UUID:", author.Uuid)
-
-		// Insert Book with correct author UUID
-		if err := schema.InsertBook(ctx, data.Book, author.Uuid); err != nil {
-			fmt.Println("Error inserting book:", err)
-		} else {
-			fmt.Println("Inserted book:", data.Book.Title, "UUID:", data.Book.Uuid)
-		}
+	if book != nil {
+		fmt.Printf("\nFetched Book: UUID: %s, Title: %s, Genre: %s\n", book.Uuid, book.Title, book.Genre)
+	} else {
+		fmt.Println("\nNo book found with the given UUID.")
 	}
 }
