@@ -16,10 +16,9 @@ type Book struct {
 const hasuraEndpoint = "http://localhost:8080/v1/graphql"
 const hasuraAdminSecret = "mysecret"
 
-// createGraphQLClient initializes the GraphQL client with proper headers.
 func createGraphQLClient() *graphql.Client {
 	client := graphql.NewClient(hasuraEndpoint)
-	client.Log = func(s string) { println(s) } // Log for debugging
+	client.Log = func(s string) { println(s) } 
 	return client
 }
 
